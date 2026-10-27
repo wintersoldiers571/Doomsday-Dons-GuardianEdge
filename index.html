@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianEdge | Edge-AI Behavioral Watchdog & Self-Healing SOC</title>
+    <!-- Google Fonts: Orbitron & Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #06080d;
+            --bg-card: rgba(13, 19, 32, 0.75);
+            --bg-card-border: rgba(0, 240, 255, 0.2);
+            --cyan-neon: #00f0ff;
+            --emerald-neon: #00ff88;
+            --crimson-neon: #ff0055;
+            --amber-neon: #ffaa00;
+            --purple-neon: #9d4edd;
+            --text-main: #e2e8f0;
+            --text-dim: #718096;
+            --font-display: 'Orbitron', sans-serif;
+            --font-sub: 'Rajdhani', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(157, 78, 221, 0.05) 0%, transparent 40%),
+                linear-gradient(rgba(6, 8, 13, 0.95), rgba(6, 8, 13, 0.95)),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 240, 255, 0.015) 2px, rgba(0, 240, 255, 0.015) 4px);
+            color: var(--text-main);
+            font-family: var(--font-sub);
+            min-height: 100vh;
+            overflow-x: hidden;
+            letter-spacing: 0.5px;
+        }
+
+        /* Top Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 28px;
+            background: rgba(10, 15, 26, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--bg-card-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 255, 136, 0.2));
+            border: 1px solid var(--cyan-neon);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .brand-title {
+            font-family: var(--font-display);
+            font-size: 1.45rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, #ffffff, var(--cyan-neon));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Status Badge */
+        .system-pill {
+            padding: 7px 18px;
+            border-radius: 30px;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .pill-secure {
+            background: rgba(0, 255, 136, 0.12);
+            color: var(--emerald-neon);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            box-shadow: 0 0 16px rgba(0, 255, 136, 0.25);
+        }
+
+        .pill-danger {
+            background: rgba(255, 0, 85, 0.2);
+            color: var(--crimson-neon);
+            border: 1px solid var(--crimson-neon);
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+            animation: pulse-danger 1s infinite alternate;
+        }
+
+        .pill-healing {
+            background: rgba(0, 240, 255, 0.2);
+            color: var(--cyan-neon);
+            border: 1px solid var(--cyan-neon);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+            animation: pulse-healing 0.8s infinite alternate;
+        }
+
+        .pulse-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        @keyframes pulse-danger {
+            from { opacity: 0.75; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1.02); }
+        }
+
+        @keyframes pulse-healing {
+            from { box-shadow: 0 0 10px var(--cyan-neon); }
+            to { box-shadow: 0 0 25px var(--cyan-neon); }
+        }
+
+        /* Source Selector */
+        .source-selector {
+            display: flex;
+            background: rgba(18, 25, 42, 0.8);
+            border-radius: 6px;
+            padding: 3px;
+            border: 1px solid rgba(0, 240, 255, 0.15);
+        }
+
+        .source-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-family: var(--font-mono);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .source-btn.active {
+            background: var(--cyan-neon);
+            color: #06080d;
+            font-weight: 700;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Dashboard Container */
+        .dashboard-container {
+            padding: 20px 28px;
+            max-width: 1700px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Main Grid: Video Feed + Telemetry HUD */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1.25fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1100px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cyberpunk Card */
+        .cyber-card {
+            background: var(--bg-card);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 10px;
+            backdrop-filter: blur(14px);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .cyber-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 30px;
+            height: 2px;
+            background: var(--cyan-neon);
+            box-shadow: 0 0 8px var(--cyan-neon);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            padding-bottom: 10px;
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            letter-spacing: 1.5px;
+            color: var(--cyan-neon);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-badge {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        /* Video Stream Container */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            height: 440px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-feed-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .hud-overlay-scanner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--cyan-neon), transparent);
+            box-shadow: 0 0 12px var(--cyan-neon);
+            animation: scanline 3s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanline {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+
+        /* Live Stream Status Bar below video */
+        .video-meta-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .meta-item span {
+            color: var(--cyan-neon);
+            font-weight: bold;
+        }
+
+        /* Actuator Safety Lock Indicator */
+        .actuator-bar {
+            margin-top: 12px;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .actuator-unlocked {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: var(--emerald-neon);
+        }
+
+        .actuator-locked {
+            background: rgba(255, 0, 85, 0.2);
+            border: 1px solid var(--crimson-neon);
+            color: var(--crimson-neon);
+            animation: pulse-danger 0.8s infinite alternate;
+        }
+
+        /* Metrics HUD Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+        }
+
+        .metric-tile {
+            background: rgba(18, 25, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .metric-label {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .metric-value-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+        }
+
+        .metric-value {
+            font-family: var(--font-display);
+            font-size: 1.55rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .metric-sub {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* Progress / Confidence Meter */
+        .cyber-progress-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .cyber-progress-fill {
+            height: 100%;
+            width: 100%;
+            background: var(--cyan-neon);
+            box-shadow: 0 0 8px var(--cyan-neon);
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+
+        /* Watchdog Layer Cards */
+        .watchdog-layers {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .layer-box {
+            padding: 12px 16px;
+            background: rgba(18, 25, 42, 0.5);
+            border-radius: 8px;
+            border-left: 4px solid var(--cyan-neon);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .layer-title {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .layer-desc {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        .layer-status-badge {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .badge-pass {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--emerald-neon);
+            border: 1px solid var(--emerald-neon);
+        }
+
+        .badge-fail {
+            background: rgba(255, 0, 85, 0.2);
+            color: var(--crimson-neon);
+            border: 1px solid var(--crimson-neon);
+        }
+
+        /* Live Attack Simulation Control Station */
+        .attack-station {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .attack-btn-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .attack-btn-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .attack-btn {
+            background: rgba(22, 30, 48, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 16px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: var(--font-display);
+            font-size: 0.82rem;
+            letter-spacing: 1px;
+            transition: all 0.25s ease;
+        }
+
+        .attack-btn i {
+            font-size: 1.6rem;
+        }
+
+        .attack-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-weight-corruption {
+            border-color: rgba(255, 170, 0, 0.4);
+        }
+        .btn-weight-corruption:hover {
+            background: rgba(255, 170, 0, 0.15);
+            border-color: var(--amber-neon);
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.35);
+        }
+
+        .btn-adversarial {
+            border-color: rgba(157, 78, 221, 0.4);
+        }
+        .btn-adversarial:hover {
+            background: rgba(157, 78, 221, 0.15);
+            border-color: var(--purple-neon);
+            box-shadow: 0 0 20px rgba(157, 78, 221, 0.35);
+        }
+
+        .btn-rollback {
+            border-color: rgba(0, 240, 255, 0.4);
+        }
+        .btn-rollback:hover {
+            background: rgba(0, 240, 255, 0.15);
+            border-color: var(--cyan-neon);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+
+        .btn-reset {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .btn-reset:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #fff;
+        }
+
+        /* 6-Step Autonomous Self-Healing Pipeline Track */
+        .healing-pipeline {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .healing-pipeline {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .step-node {
+            background: rgba(18, 25, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 10px 8px;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .step-num {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-dim);
+        }
+
+        .step-label {
+            font-family: var(--font-display);
+            font-size: 0.72rem;
+            color: var(--text-main);
+            margin-top: 4px;
+        }
+
+        .step-node.active {
+            background: rgba(0, 240, 255, 0.2);
+            border-color: var(--cyan-neon);
+            box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+        }
+
+        .step-node.active .step-num {
+            color: var(--cyan-neon);
+            font-weight: bold;
+        }
+
+        .step-node.active .step-label {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        /* Bottom Row: Logs Terminal & Sustainability */
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1100px) {
+            .bottom-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cyber Terminal */
+        .terminal-container {
+            background: #020408;
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            height: 230px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 6px;
+        }
+
+        .terminal-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            line-height: 1.4;
+        }
+
+        .log-ts {
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        .log-tag {
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .tag-INFO { background: rgba(0, 240, 255, 0.15); color: var(--cyan-neon); }
+        .tag-WARN { background: rgba(255, 170, 0, 0.2); color: var(--amber-neon); }
+        .tag-CRITICAL { background: rgba(255, 0, 85, 0.25); color: var(--crimson-neon); }
+        .tag-SUCCESS { background: rgba(0, 255, 136, 0.2); color: var(--emerald-neon); }
+
+        .log-msg {
+            color: #d1d5db;
+            word-break: break-word;
+        }
+
+        /* Sustainability Widget */
+        .sustain-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .sustain-card {
+            background: rgba(18, 25, 42, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            border-radius: 8px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            text-align: center;
+        }
+
+        .sustain-val {
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--emerald-neon);
+        }
+
+        .sustain-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        /* Real-time Stability Graph */
+        #stabilityCanvas {
+            width: 100%;
+            height: 75px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand-container">
+            <div class="brand-icon">🛡️</div>
+            <div>
+                <div class="brand-title">GUARDIAN-EDGE</div>
+                <div class="brand-subtitle">EDGE-AI BEHAVIORAL WATCHDOG & SELF-HEALING ARCHITECTURE</div>
+            </div>
+        </div>
+
+        <div class="header-controls">
+            <!-- Video Source Selector -->
+            <div class="source-selector">
+                <button class="source-btn active" id="btnSrcMobile" onclick="switchSource('mobile')">📱 USB Phone</button>
+                <button class="source-btn" id="btnSrcWebcam" onclick="switchSource('webcam')">💻 PC Webcam</button>
+                <button class="source-btn" id="btnSrcSim" onclick="switchSource('simulation')">🛣️ Road Sim</button>
+            </div>
+
+            <!-- Global Status Pill -->
+            <div class="system-pill pill-secure" id="systemStatusPill">
+                <div class="pulse-dot"></div>
+                <span id="systemStatusText">SYSTEM SECURE / NOMINAL</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="dashboard-container">
+
+        <!-- Top Row: Video Stream & Telemetry HUD -->
+        <div class="main-grid">
+
+            <!-- Left: Live Video Feed HUD -->
+            <div class="cyber-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>📹</span> LIVE CAMERA NODE [GTSRB DETECTION RETICLE]
+                    </div>
+                    <div class="card-badge" id="sourceBadge">STREAM: USB_MOBILE</div>
+                </div>
+
+                <div class="video-wrapper">
+                    <img src="/video_feed" alt="GuardianEdge Video Feed" class="video-feed-img" id="videoFeed">
+                    <div class="hud-overlay-scanner"></div>
+                </div>
+
+                <div class="video-meta-bar">
+                    <div class="meta-item">INPUT: <span id="metaRes">640x480</span></div>
+                    <div class="meta-item">FPS: <span id="metaFPS">30.0</span></div>
+                    <div class="meta-item">EDGE LATENCY: <span id="metaLatency">3.2ms</span></div>
+                    <div class="meta-item">TOTAL INFERENCES: <span id="metaInferences">0</span></div>
+                </div>
+
+                <!-- Actuator Safety Lock Indicator -->
+                <div class="actuator-bar actuator-unlocked" id="actuatorStatusBox">
+                    <span id="actuatorStatusTitle">⚡ VEHICLE ACTUATOR: PASS-THROUGH NOMINAL</span>
+                    <span id="actuatorStatusDesc">CRUISE / STEERING COMMANDS ACTIVE</span>
+                </div>
+            </div>
+
+            <!-- Right: Real-Time Behavioral Metrics HUD -->
+            <div class="cyber-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>📊</span> BEHAVIORAL INTEGRITY & WATCHDOG METRICS
+                    </div>
+                    <div class="card-badge">EDGE-CORE HOST</div>
+                </div>
+
+                <!-- 4 Metrics Tiles -->
+                <div class="metrics-grid">
+                    <!-- Trust Score -->
+                    <div class="metric-tile">
+                        <div class="metric-label">Model Health & Trust Score</div>
+                        <div class="metric-value-row">
+                            <div class="metric-value" id="trustScoreVal" style="color: var(--emerald-neon);">100%</div>
+                            <div class="metric-sub" id="trustScoreState">OPTIMAL</div>
+                        </div>
+                        <div class="cyber-progress-bg">
+                            <div class="cyber-progress-fill" id="trustScoreBar" style="width: 100%; background: var(--emerald-neon);"></div>
+                        </div>
+                    </div>
+
+                    <!-- Recovery Time Objective (RTO) -->
+                    <div class="metric-tile">
+                        <div class="metric-label">Recovery Time Objective (RTO)</div>
+                        <div class="metric-value-row">
+                            <div class="metric-value" id="rtoVal" style="color: var(--cyan-neon);">184ms</div>
+                            <div class="metric-sub">TARGET &lt; 2000ms</div>
+                        </div>
+                        <div class="cyber-progress-bg">
+                            <div class="cyber-progress-fill" id="rtoBar" style="width: 12%; background: var(--cyan-neon);"></div>
+                        </div>
+                    </div>
+
+                    <!-- CPU Overhead Counter -->
+                    <div class="metric-tile">
+                        <div class="metric-label">Edge Watchdog CPU Overhead</div>
+                        <div class="metric-value-row">
+                            <div class="metric-value" id="cpuVal">2.4%</div>
+                            <div class="metric-sub">BUDGET &lt; 5.0%</div>
+                        </div>
+                        <div class="cyber-progress-bg">
+                            <div class="cyber-progress-fill" style="width: 24%; background: var(--cyan-neon);"></div>
+                        </div>
+                    </div>
+
+                    <!-- Rolling Confidence & Stability -->
+                    <div class="metric-tile">
+                        <div class="metric-label">Confidence & Entropy Stability</div>
+                        <div class="metric-value-row">
+                            <div class="metric-value" id="entropyVal">0.42</div>
+                            <div class="metric-sub" id="entropyDesc">LOW NOISE</div>
+                        </div>
+                        <div class="cyber-progress-bg">
+                            <div class="cyber-progress-fill" id="entropyBar" style="width: 85%; background: var(--cyan-neon);"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Rolling Stability Graph -->
+                <div style="margin-top: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">
+                        <span>ROLLING PREDICTION STABILITY STREAM (15 FRAMES)</span>
+                        <span id="flutterRateText">FLUTTER RATE: 0%</span>
+                    </div>
+                    <canvas id="stabilityCanvas" width="400" height="75"></canvas>
+                </div>
+
+                <!-- Dual-Layer Watchdog Status Boxes -->
+                <div class="watchdog-layers">
+                    <!-- Layer 1: Golden-Input Spot Checks -->
+                    <div class="layer-box" id="layer1Box">
+                        <div>
+                            <div class="layer-title">WATCHDOG LAYER 1: GOLDEN-INPUT SPOT CHECKS</div>
+                            <div class="layer-desc" id="layer1Desc">Periodically verifying 5 immutable GTSRB baseline signatures.</div>
+                        </div>
+                        <div class="layer-status-badge badge-pass" id="layer1Badge">PASS</div>
+                    </div>
+
+                    <!-- Layer 2: Confusion & Stability Monitor -->
+                    <div class="layer-box" id="layer2Box">
+                        <div>
+                            <div class="layer-title">WATCHDOG LAYER 2: CONFUSION & STABILITY MONITOR</div>
+                            <div class="layer-desc" id="layer2Desc">Tracking rolling confidence variance & adversarial flutter.</div>
+                        </div>
+                        <div class="layer-status-badge badge-pass" id="layer2Badge">STABLE</div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Middle Row: Interactive Attack Simulation & 6-Step Autonomous Self-Healing Pipeline -->
+        <div class="cyber-card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>⚔️</span> LIVE ATTACK SIMULATION & AUTONOMOUS INCIDENT RESPONSE
+                </div>
+                <div class="card-badge">DEMO CONTROL CONSOLE</div>
+            </div>
+
+            <!-- Attack Buttons -->
+            <div class="attack-station">
+                <div class="attack-btn-grid">
+                    <button class="attack-btn btn-weight-corruption" onclick="injectWeightCorruption()">
+                        <i style="color: var(--amber-neon);">⚡</i>
+                        <span>INJECT WEIGHT CORRUPTION</span>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);">Bit-flip RAM dense layers</small>
+                    </button>
+
+                    <button class="attack-btn btn-adversarial" onclick="injectAdversarialNoise()">
+                        <i style="color: var(--purple-neon);">🌀</i>
+                        <span>INJECT ADVERSARIAL NOISE</span>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);">High-frequency frame noise</small>
+                    </button>
+
+                    <button class="attack-btn btn-rollback" onclick="triggerManualRollback()">
+                        <i style="color: var(--cyan-neon);">🚨</i>
+                        <span>EMERGENCY ROLLBACK</span>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);">Trigger 6-Step Healing Loop</small>
+                    </button>
+
+                    <button class="attack-btn btn-reset" onclick="clearAttacks()">
+                        <i style="color: #fff;">↺</i>
+                        <span>CLEAR ATTACKS</span>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);">Deactivate perturbations</small>
+                    </button>
+                </div>
+
+                <!-- 6-Step Visual Self-Healing Pipeline Track -->
+                <div style="margin-top: 10px;">
+                    <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); margin-bottom: 6px;">
+                        AUTONOMOUS INCIDENT RESPONSE WORKFLOW: <span id="activeStepTitle" style="color: var(--cyan-neon);">00. SYSTEM IDLE / MONITORING</span>
+                    </div>
+
+                    <div class="healing-pipeline">
+                        <div class="step-node" id="stepNode1">
+                            <div class="step-num">STEP 01</div>
+                            <div class="step-label">DETECT</div>
+                        </div>
+                        <div class="step-node" id="stepNode2">
+                            <div class="step-num">STEP 02</div>
+                            <div class="step-label">LOCK</div>
+                        </div>
+                        <div class="step-node" id="stepNode3">
+                            <div class="step-num">STEP 03</div>
+                            <div class="step-label">PURGE</div>
+                        </div>
+                        <div class="step-node" id="stepNode4">
+                            <div class="step-num">STEP 04</div>
+                            <div class="step-label">RESTORE</div>
+                        </div>
+                        <div class="step-node" id="stepNode5">
+                            <div class="step-num">STEP 05</div>
+                            <div class="step-label">VERIFY</div>
+                        </div>
+                        <div class="step-node" id="stepNode6">
+                            <div class="step-num">STEP 06</div>
+                            <div class="step-label">RESUME</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Bottom Row: Real-Time Incident Terminal & Sustainability Impact -->
+        <div class="bottom-grid">
+
+            <!-- Incident Log Terminal -->
+            <div class="cyber-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>📟</span> REAL-TIME INCIDENT AUDIT LOGS
+                    </div>
+                    <div class="card-badge">TAMPER-PROOF STREAM</div>
+                </div>
+
+                <div class="terminal-container" id="terminalLogs">
+                    <!-- Dynamic log items inserted here -->
+                </div>
+            </div>
+
+            <!-- Sustainability Impact Widget -->
+            <div class="cyber-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>🌱</span> SUSTAINABILITY & EDGE RESILIENCE METRICS
+                    </div>
+                    <div class="card-badge">SLIDE 9 ALIGNED</div>
+                </div>
+
+                <div class="sustain-grid">
+                    <div class="sustain-card">
+                        <div class="sustain-val" id="latReducVal">95.2%</div>
+                        <div class="sustain-label">Latency Saved vs Cloud</div>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">Local ~184ms vs Cloud 3,850ms</small>
+                    </div>
+
+                    <div class="sustain-card">
+                        <div class="sustain-val" id="co2Val">0.0g</div>
+                        <div class="sustain-label">CO2 Footprint Avoided</div>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">~124.5g CO2 per recovery</small>
+                    </div>
+
+                    <div class="sustain-card">
+                        <div class="sustain-val" id="bandwidthVal">0.0 MB</div>
+                        <div class="sustain-label">Egress Bandwidth Saved</div>
+                        <small style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">Zero cloud re-deploy cost</small>
+                    </div>
+                </div>
+
+                <div style="margin-top: 14px; padding: 12px; background: rgba(0, 255, 136, 0.05); border: 1px solid rgba(0, 255, 136, 0.2); border-radius: 6px; font-family: var(--font-mono); font-size: 0.72rem; color: #a7f3d0;">
+                    ✓ <strong>Autonomous Edge Execution:</strong> Eliminates continuous high-bandwidth video uplink to centralized cloud servers. Self-healing loop executes entirely on local NPU/CPU in &lt; 200ms.
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Client Script -->
+    <script>
+        // Stability chart history
+        const chartHistory = [0.95, 0.94, 0.96, 0.95, 0.97, 0.95, 0.96, 0.95, 0.94, 0.96, 0.95, 0.97, 0.96, 0.95, 0.95];
+
+        function drawStabilityChart(flutterRate, entropy) {
+            const canvas = document.getElementById('stabilityCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Draw grid line
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, h / 2);
+            ctx.lineTo(w, h / 2);
+            ctx.stroke();
+
+            // Calculate new stability point
+            let val = Math.max(0.1, 1.0 - (flutterRate / 100 * 0.8) - (entropy * 0.1));
+            // Add slight jitter
+            val += (Math.random() - 0.5) * 0.04;
+            chartHistory.push(Math.min(1.0, Math.max(0.05, val)));
+            if (chartHistory.length > 20) chartHistory.shift();
+
+            // Draw line
+            ctx.beginPath();
+            const step = w / (chartHistory.length - 1);
+            chartHistory.forEach((v, i) => {
+                const x = i * step;
+                const y = h - (v * (h - 12)) - 6;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+
+            ctx.strokeStyle = (flutterRate > 30) ? "#ff0055" : "#00f0ff";
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = ctx.strokeStyle;
+            ctx.shadowBlur = 6;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        // Status Polling Loop
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                updateDashboard(data);
+            } catch (err) {
+                console.error("Telemetry fetch failed:", err);
+            }
+        }
+
+        function updateDashboard(data) {
+            // 1. System Status Banner Pill
+            const pill = document.getElementById('systemStatusPill');
+            const pillText = document.getElementById('systemStatusText');
+
+            if (data.system_status === "SECURE_NOMINAL") {
+                pill.className = "system-pill pill-secure";
+                pillText.textContent = "SYSTEM SECURE / NOMINAL";
+            } else if (data.system_status === "HEALING_IN_PROGRESS") {
+                pill.className = "system-pill pill-healing";
+                pillText.textContent = `SELF-HEALING IN PROGRESS [STEP 0${data.healing.step_index}]`;
+            } else {
+                pill.className = "system-pill pill-danger";
+                pillText.textContent = "CRITICAL ANOMALY / FAILSAFE ACTIVE";
+            }
+
+            // 2. Trust Score
+            const trustVal = document.getElementById('trustScoreVal');
+            const trustBar = document.getElementById('trustScoreBar');
+            const trustDesc = document.getElementById('trustScoreState');
+            trustVal.textContent = `${data.trust_score}%`;
+            trustBar.style.width = `${data.trust_score}%`;
+
+            if (data.trust_score > 80) {
+                trustVal.style.color = "var(--emerald-neon)";
+                trustBar.style.background = "var(--emerald-neon)";
+                trustDesc.textContent = "OPTIMAL";
+            } else if (data.trust_score > 40) {
+                trustVal.style.color = "var(--amber-neon)";
+                trustBar.style.background = "var(--amber-neon)";
+                trustDesc.textContent = "DEGRADED";
+            } else {
+                trustVal.style.color = "var(--crimson-neon)";
+                trustBar.style.background = "var(--crimson-neon)";
+                trustDesc.textContent = "COMPROMISED";
+            }
+
+            // 3. Actuator Status Box
+            const actBox = document.getElementById('actuatorStatusBox');
+            const actTitle = document.getElementById('actuatorStatusTitle');
+            const actDesc = document.getElementById('actuatorStatusDesc');
+
+            if (data.actuator_locked) {
+                actBox.className = "actuator-bar actuator-locked";
+                actTitle.textContent = "⚠️ SAFETY OVERRIDE ACTIVE: ACTUATOR LOCKED (EMERGENCY_HOLD)";
+                actDesc.textContent = "FAILSAFE ACTIVE | VEHICLE IN SAFE STATE";
+            } else {
+                actBox.className = "actuator-bar actuator-unlocked";
+                actTitle.textContent = "⚡ VEHICLE ACTUATOR: PASS-THROUGH NOMINAL";
+                actDesc.textContent = "CRUISE / STEERING COMMANDS ACTIVE";
+            }
+
+            // 4. Watchdog Layers
+            const l1Badge = document.getElementById('layer1Badge');
+            const l1Desc = document.getElementById('layer1Desc');
+            if (data.layer1.status === "PASS") {
+                l1Badge.className = "layer-status-badge badge-pass";
+                l1Badge.textContent = "PASS";
+                l1Desc.textContent = `Golden checks verified ${data.layer1.last_check_ago_sec}s ago (0 failures).`;
+            } else {
+                l1Badge.className = "layer-status-badge badge-fail";
+                l1Badge.textContent = "MISMATCH";
+                l1Desc.textContent = `CRITICAL: ${data.layer1.failed_count} baseline signatures drifted!`;
+            }
+
+            const l2Badge = document.getElementById('layer2Badge');
+            const l2Desc = document.getElementById('layer2Desc');
+            if (data.layer2.status === "STABLE") {
+                l2Badge.className = "layer-status-badge badge-pass";
+                l2Badge.textContent = "STABLE";
+                l2Desc.textContent = `Flutter rate: ${data.layer2.flutter_rate}% | Entropy: ${data.layer2.entropy}`;
+            } else {
+                l2Badge.className = "layer-status-badge badge-fail";
+                l2Badge.textContent = "ANOMALY";
+                l2Desc.textContent = `High jitter detected (${data.layer2.flutter_rate}%)! Potential adversarial attack.`;
+            }
+
+            // 5. RTO & CPU Overhead
+            document.getElementById('rtoVal').textContent = `${data.healing.last_rto_ms}ms`;
+            document.getElementById('cpuVal').textContent = `${data.performance.cpu_overhead_pct}%`;
+            document.getElementById('metaInferences').textContent = data.performance.total_inferences;
+            document.getElementById('entropyVal').textContent = data.layer2.entropy;
+            document.getElementById('flutterRateText').textContent = `FLUTTER RATE: ${data.layer2.flutter_rate}%`;
+
+            // Draw stability chart
+            drawStabilityChart(data.layer2.flutter_rate, data.layer2.entropy);
+
+            // 6. 6-Step Visual Self-Healing Pipeline
+            document.getElementById('activeStepTitle').textContent = data.healing.step_name;
+            const currentStep = data.healing.step_index;
+            for (let i = 1; i <= 6; i++) {
+                const node = document.getElementById(`stepNode${i}`);
+                if (currentStep === i) {
+                    node.className = "step-node active";
+                } else {
+                    node.className = "step-node";
+                }
+            }
+
+            // 7. Sustainability Metrics
+            document.getElementById('latReducVal').textContent = `${data.sustainability.latency_reduction_pct}%`;
+            document.getElementById('co2Val').textContent = `${data.sustainability.co2_saved_grams}g`;
+            document.getElementById('bandwidthVal').textContent = `${data.sustainability.bandwidth_saved_mb} MB`;
+
+            // 8. Incident Terminal Logs
+            renderLogs(data.incident_logs);
+
+            // 9. Video Source Badge
+            if (data.video_source) {
+                const srcBadge = document.getElementById('sourceBadge');
+                if (data.video_source.active === 'mobile') {
+                    srcBadge.textContent = data.video_source.mobile_connected ? "STREAM: USB_PHONE [ONLINE]" : "STREAM: USB_PHONE [STANDBY]";
+                } else if (data.video_source.active === 'webcam') {
+                    srcBadge.textContent = "STREAM: PC_WEBCAM";
+                } else {
+                    srcBadge.textContent = "STREAM: GTSRB_ROAD_SIM";
+                }
+            }
+        }
+
+        function renderLogs(logs) {
+            const container = document.getElementById('terminalLogs');
+            container.innerHTML = '';
+            logs.forEach(log => {
+                const row = document.createElement('div');
+                row.className = 'terminal-line';
+                row.innerHTML = `
+                    <span class="log-ts">[${log.timestamp}]</span>
+                    <span class="log-tag tag-${log.severity}">${log.type}</span>
+                    <span class="log-msg">${log.message}</span>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // Action Handlers
+        async function injectWeightCorruption() {
+            await fetch('/api/attack/weight_corruption', { method: 'POST' });
+        }
+
+        async function injectAdversarialNoise() {
+            await fetch('/api/attack/adversarial_noise', { method: 'POST' });
+        }
+
+        async function triggerManualRollback() {
+            await fetch('/api/heal/rollback', { method: 'POST' });
+        }
+
+        async function clearAttacks() {
+            await fetch('/api/attack/clear', { method: 'POST' });
+        }
+
+        async function switchSource(sourceName) {
+            document.querySelectorAll('.source-btn').forEach(btn => btn.classList.remove('active'));
+            if (sourceName === 'mobile') document.getElementById('btnSrcMobile').classList.add('active');
+            if (sourceName === 'webcam') document.getElementById('btnSrcWebcam').classList.add('active');
+            if (sourceName === 'simulation') document.getElementById('btnSrcSim').classList.add('active');
+
+            await fetch('/api/set_source', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: sourceName })
+            });
+        }
+
+        // Start 300ms real-time polling
+        setInterval(fetchStatus, 300);
+        fetchStatus();
+    </script>
+</body>
+</html>
